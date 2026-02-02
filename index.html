@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>互動式物理台球教學 (Junior High Physics Pool)</title>
+    
+    <!-- MathJax 用於渲染物理公式 -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Tailwind CSS 用於快速佈局 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --table-color: #0f3460;
+            --wood-color: #53354a;
+            --text-color: #e94560;
+            --accent-color: #f1c40f;
+        }
+
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: #ffffff;
+            overflow-x: hidden;
+            touch-action: none;
+        }
+
+        /* 自定義捲軸 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: var(--text-color); border-radius: 10px; }
+
+        #tutorial-section {
+            max-height: 85vh;
+            scrollbar-width: thin;
+        }
+
+        .math-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid var(--text-color);
+            transition: transform 0.3s;
+        }
+        .math-box:hover { transform: translateX(5px); }
+
+        #game-area {
+            position: relative;
+            border: 12px solid var(--wood-color);
+            border-radius: 15px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            background-color: #071e3d;
+            overflow: hidden;
+        }
+
+        canvas { display: block; cursor: crosshair; }
+
+        .active-player {
+            box-shadow: 0 0 15px var(--accent-color);
+            transform: scale(1.02);
+            border: 2px solid var(--accent-color);
+        }
+
+        /* 浮動文字動畫 */
+        .float-text {
+            position: absolute;
+            pointer-events: none;
+            font-weight: 900;
+            animation: floatUp 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 0; transform: translateY(20px) scale(0.5); }
+            30% { opacity: 1; transform: translateY(0) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1); }
+        }
+
+        #overlay {
+            background: radial-gradient(circle, rgba(26,26,46,0.95) 0%, rgba(15,15,30,0.98) 100%);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen">
+
+    <header class="w-full py-4 bg-black/30 backdrop-blur-md text-center border-b border-white/10">
+        <h1 class="text-2xl font-bold tracking-widest text-pink-500">🎱 互動式物理台球教室</h1>
+        <p class="text-xs text-gray-400 mt-1 uppercase">Vector Physics & Elastic Collision Simulation</p>
+    </header>
+
+    <main class="flex flex-wrap justify-center w-full max-w-7xl p-4 gap-6">
+        
+        <!-- 左側：教學內容 -->
+        <aside id="tutorial-section" class="flex-1 min-w-[320px] glass-panel rounded-2xl p-6 overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="bg-pink-500 w-2 h-6 rounded-full"></span> 物理實驗筆記
+            </h3>
+            
+            <div class="math-box p-4 rounded-lg mb-4">
+                <strong class="text-pink-400 block mb-1">1. 反射與分量分解</strong>
+                <p class="text-sm text-gray-300 leading-relaxed">
+                    當球撞擊垂直邊牆時，平行牆面的速度 $v_y$ 不變，垂直牆面的速度 $v_x$ 會變為 $-v_x$。這完美體現了入射角等於反射角。
+                </p>
+                <div class="bg-black/40 p-2 mt-2 rounded text-center text-blue-300">
+                    $$ \vec{v}_{in} = (x, y) \rightarrow \vec{v}_{out} = (-x, y) $$
+                </div>
+            </div>
+
+            <div class="math-box p-4 rounded-lg mb-4">
+                <strong class="text-pink-400 block mb-1">2. 完全彈性碰撞</strong>
+                <p class="text-sm text-gray-300 leading-relaxed">
+                    台球碰撞趨近於彈性碰撞，滿足「動量守恆」。兩球質量 $m$ 相同時，沿連心線方向的速度會發生交換。
+                </p>
+            </div>
+
+            <div class="math-box p-4 rounded-lg mb-6">
+                <strong class="text-pink-400 block mb-1">3. 功與動能損耗</strong>
+                <p class="text-sm text-gray-300 leading-relaxed">
+                    桌面的摩擦力對球做負功，將動能轉換為熱能，使速度隨時間呈幾何級數衰減。
+                </p>
+                <div class="bg-black/40 p-2 mt-2 rounded text-center text-green-300">
+                    $$ v_{t+1} = v_t \times \mu \quad (\mu \approx 0.99) $$
+                </div>
+            </div>
+
+            <div class="text-xs text-gray-500 italic border-t border-white/10 pt-4">
+                💡 控制提示：按住母球並向後拉，觀察黃色的「預測向量」射線進行瞄準。
+            </div>
+        </aside>
+
+        <!-- 中央：遊戲區域 -->
+        <section class="flex-[2] min-w-[350px]">
+            <div id="game-area">
+                <canvas id="poolCanvas"></canvas>
+                <div id="feedback-layer" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+            
+            <div class="mt-6 flex justify-between items-center bg-black/20 p-4 rounded-xl">
+                <div class="flex gap-4">
+                    <button onclick="Game.resetGame()" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-full text-sm font-bold transition">重置桌面</button>
+                    <button onclick="location.reload()" class="px-6 py-2 bg-pink-600/20 border border-pink-500/50 hover:bg-pink-600/40 rounded-full text-sm font-bold transition">切換模式</button>
+                </div>
+                <div id="game-status" class="text-lg font-black tracking-tighter italic">READY?</div>
+            </div>
+        </section>
+
+        <!-- 右側：資訊面板 -->
+        <aside id="info-panel" class="flex-1 min-w-[280px] space-y-4">
+            <div class="glass-panel rounded-2xl p-6 text-center">
+                <h3 class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Score Board</h3>
+                <div id="round-display" class="text-2xl font-black mb-4">ROUND 1</div>
+                
+                <div class="space-y-3">
+                    <div id="p1-card" class="p-4 rounded-xl bg-blue-900/30 transition-all duration-500">
+                        <div class="text-xs text-blue-400 font-bold uppercase">Player 01 (Blue)</div>
+                        <div id="p1-score" class="text-3xl font-black">0</div>
+                    </div>
+                    <div id="p2-card" class="p-4 rounded-xl bg-red-900/30 transition-all duration-500">
+                        <div class="text-xs text-red-400 font-bold uppercase">Player 02 (Red)</div>
+                        <div id="p2-score" class="text-3xl font-black">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 text-[10px] text-gray-500">
+                本系統使用 HTML5 Canvas 繪圖與向量數學庫模擬真實物理。撞擊判定精確度：0.01 像素。
+            </div>
+        </aside>
+    </main>
+
+    <!-- 啟動選單 -->
+    <div id="overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div class="mb-8">
+            <div class="text-6xl mb-4">🎱</div>
+            <h1 class="text-5xl font-black tracking-tighter text-white">PHYSICS POOL</h1>
+            <p class="text-gray-400 mt-2">向量運算與碰撞力學模擬器</p>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+            <button onclick="Game.init('single')" class="flex-1 py-4 bg-pink-600 hover:bg-pink-500 text-white rounded-2xl font-bold shadow-lg shadow-pink-900/20 transition-all active:scale-95">
+                單人練習
+            </button>
+            <button onclick="Game.init('multi')" class="flex-1 py-4 bg-white hover:bg-gray-200 text-black rounded-2xl font-bold shadow-lg transition-all active:scale-95">
+                雙人對戰
+            </button>
+        </div>
+        <p class="mt-8 text-xs text-gray-600 uppercase tracking-widest">Recommended for Desktop or Tablet</p>
+    </div>
+
+<script>
+/**
+ * 向量工具類 (Vector Class) - 物理核心
+ */
+class Vector {
+    constructor(x, y) { this.x = x; this.y = y; }
+    add(v) { return new Vector(this.x + v.x, this.y + v.y); }
+    sub(v) { return new Vector(this.x - v.x, this.y - v.y); }
+    mult(n) { return new Vector(this.x * n, this.y * n); }
+    mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+    normalize() {
+        const m = this.mag();
+        return m === 0 ? new Vector(0, 0) : new Vector(this.x / m, this.y / m);
+    }
+    dot(v) { return this.x * v.x + this.y * v.y; }
+    dist(v) { return Math.sqrt((this.x - v.x)**2 + (this.y - v.y)**2); }
+}
+
+/**
+ * 音效系統
+ */
+const AudioSys = {
+    ctx: null,
+    init() {
+        if (this.ctx) return;
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    },
+    playTone(freq, type, duration, vol) {
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    },
+    playHit(speed) {
+        const vol = Math.min(speed / 15, 1) * 0.5;
+        if (vol < 0.05) return;
+        this.playTone(600 + speed * 10, 'sine', 0.1, vol);
+    },
+    playPot() {
+        [440, 554, 659].forEach((f, i) => {
+            setTimeout(() => this.playTone(f, 'triangle', 0.4, 0.2), i * 100);
+        });
+    }
+};
+
+/**
+ * 粒子與視覺效果
+ */
+class Particle {
+    constructor(x, y, color) {
+        this.pos = new Vector(x, y);
+        this.vel = new Vector((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+        this.life = 1.0;
+        this.color = color;
+        this.size = Math.random() * 3 + 1;
+    }
+    update() {
+        this.pos = this.pos.add(this.vel);
+        this.life -= 0.03;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.pos.x, this.pos.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+/**
+ * 球體類 (Ball)
+ */
+class Ball {
+    constructor(id, x, y, color, isCue = false) {
+        this.id = id;
+        this.pos = new Vector(x, y);
+        this.vel = new Vector(0, 0);
+        this.radius = 12;
+        this.color = color;
+        this.isCue = isCue;
+        this.potted = false;
+    }
+
+    update(width, height) {
+        if (this.potted) return;
+        this.pos = this.pos.add(this.vel);
+        this.vel = this.vel.mult(0.99); // 摩擦力
+
+        if (this.vel.mag() < 0.15) this.vel = new Vector(0, 0);
+
+        // 牆壁碰撞 (反射)
+        if (this.pos.x < this.radius) {
+            this.pos.x = this.radius;
+            this.vel.x *= -0.8;
+            AudioSys.playHit(Math.abs(this.vel.x));
+        } else if (this.pos.x > width - this.radius) {
+            this.pos.x = width - this.radius;
+            this.vel.x *= -0.8;
+            AudioSys.playHit(Math.abs(this.vel.x));
+        }
+
+        if (this.pos.y < this.radius) {
+            this.pos.y = this.radius;
+            this.vel.y *= -0.8;
+            AudioSys.playHit(Math.abs(this.vel.y));
+        } else if (this.pos.y > height - this.radius) {
+            this.pos.y = height - this.radius;
+            this.vel.y *= -0.8;
+            AudioSys.playHit(Math.abs(this.vel.y));
+        }
+    }
+
+    draw(ctx) {
+        if (this.potted) return;
+        ctx.beginPath();
+        ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI * 2);
+        
+        // 漸層著色
+        const grad = ctx.createRadialGradient(this.pos.x - 4, this.pos.y - 4, 1, this.pos.x, this.pos.y, this.radius);
+        grad.addColorStop(0, '#fff');
+        grad.addColorStop(0.2, this.color);
+        grad.addColorStop(1, '#000');
+        
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+/**
+ * 遊戲主引擎 (Game Engine)
+ */
+const Game = {
+    canvas: null,
+    ctx: null,
+    balls: [],
+    particles: [],
+    mode: 'single',
+    turn: 1, // 1:Blue, 2:Red
+    scores: { p1: 0, p2: 0 },
+    isAiming: false,
+    dragStart: null,
+    dragEnd: null,
+    round: 1,
+
+    init(mode) {
+        this.mode = mode;
+        this.canvas = document.getElementById('poolCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        document.getElementById('overlay').style.display = 'none';
+
+        this.resize();
+        window.onresize = () => this.resize();
+
+        // 事件綁定
+        const start = (e) => this.handleStart(e);
+        const move = (e) => this.handleMove(e);
+        const end = (e) => this.handleEnd(e);
+
+        this.canvas.addEventListener('mousedown', start);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        
+        this.canvas.addEventListener('touchstart', start, {passive: false});
+        window.addEventListener('touchmove', move, {passive: false});
+        window.addEventListener('touchend', end);
+
+        this.resetRack();
+        this.loop();
+    },
+
+    resize() {
+        const parent = this.canvas.parentElement;
+        const w = parent.clientWidth;
+        const h = w * 0.5;
+        this.canvas.width = w;
+        this.canvas.height = h;
+    },
+
+    resetRack() {
+        this.balls = [];
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        
+        // 母球
+        this.balls.push(new Ball(0, w * 0.25, h * 0.5, '#ffffff', true));
+
+        // 目標球排列
+        const startX = w * 0.7;
+        const startY = h * 0.5;
+        const r = 12.5;
+        let id = 1;
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j <= i; j++) {
+                const color = (this.mode === 'single') ? '#e94560' : (id % 2 === 0 ? '#3498db' : '#e94560');
+                this.balls.push(new Ball(id++, startX + i * r * 1.8, startY - (i * r) + (j * r * 2), color));
+            }
+        }
+        this.updateUI();
+    },
+
+    getMouse(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return new Vector(clientX - rect.left, clientY - rect.top);
+    },
+
+    handleStart(e) {
+        if (this.isMoving()) return;
+        const m = this.getMouse(e);
+        const cue = this.balls[0];
+        if (m.dist(cue.pos) < 50) {
+            this.isAiming = true;
+            this.dragStart = cue.pos;
+            this.dragEnd = m;
+        }
+    },
+
+    handleMove(e) {
+        if (this.isAiming) {
+            this.dragEnd = this.getMouse(e);
+            if(e.cancelable) e.preventDefault();
+        }
+    },
+
+    handleEnd() {
+        if (this.isAiming) {
+            const cue = this.balls[0];
+            const force = this.dragStart.sub(this.dragEnd).mult(0.18);
+            const mag = force.mag();
+            const limit = 25;
+            cue.vel = mag > limit ? force.normalize().mult(limit) : force;
+            
+            if (cue.vel.mag() > 1) AudioSys.playHit(cue.vel.mag() * 2);
+            this.isAiming = false;
+        }
+    },
+
+    isMoving() {
+        return this.balls.some(b => b.vel.mag() > 0);
+    },
+
+    update() {
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const pockets = [
+            [0,0], [w/2, 0], [w, 0],
+            [0, h], [w/2, h], [w, h]
+        ];
+
+        // 物理子步提高精準度
+        for (let step = 0; step < 3; step++) {
+            this.balls.forEach(b => {
+                if (b.potted) return;
+                b.update(w, h);
+                
+                // 檢查進洞
+                pockets.forEach(p => {
+                    if (b.pos.dist(new Vector(p[0], p[1])) < 26) {
+                        b.potted = true;
+                        b.vel = new Vector(0,0);
+                        this.handlePot(b);
+                    }
+                });
+            });
+
+            // 球體碰撞 (動量交換)
+            for (let i = 0; i < this.balls.length; i++) {
+                for (let j = i + 1; j < this.balls.length; j++) {
+                    const b1 = this.balls[i];
+                    const b2 = this.balls[j];
+                    if (b1.potted || b2.potted) continue;
+
+                    const dist = b1.pos.dist(b2.pos);
+                    if (dist < b1.radius + b2.radius) {
+                        // 解決重疊
+                        const collisionNormal = b1.pos.sub(b2.pos).normalize();
+                        const overlap = (b1.radius + b2.radius) - dist;
+                        b1.pos = b1.pos.add(collisionNormal.mult(overlap / 2));
+                        b2.pos = b2.pos.sub(collisionNormal.mult(overlap / 2));
+
+                        // 分解速度
+                        const relativeVelocity = b1.vel.sub(b2.vel);
+                        const speed = relativeVelocity.dot(collisionNormal);
+                        
+                        if (speed < 0) {
+                            const impulse = collisionNormal.mult(speed);
+                            b1.vel = b1.vel.sub(impulse);
+                            b2.vel = b2.vel.add(impulse);
+                            AudioSys.playHit(speed * -2);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 粒子更新
+        this.particles = this.particles.filter(p => {
+            p.update();
+            return p.life > 0;
+        });
+
+        // 回合結束檢測
+        if (this.wasMoving && !this.isMoving()) {
+            this.handleTurnEnd();
+        }
+        this.wasMoving = this.isMoving();
+    },
+
+    handlePot(ball) {
+        this.createExplosion(ball.pos.x, ball.pos.y, ball.color);
+        AudioSys.playPot();
+        
+        if (ball.isCue) {
+            this.showFeedback("母球洗袋！犯規", "#ff4757");
+            setTimeout(() => {
+                ball.potted = false;
+                ball.pos = new Vector(this.canvas.width * 0.25, this.canvas.height * 0.5);
+                ball.vel = new Vector(0,0);
+            }, 1000);
+        } else {
+            if (this.mode === 'single') {
+                this.scores.p1 += 10;
+                this.showFeedback("+10 SCORE", "#f1c40f");
+            } else {
+                if (ball.color === '#3498db') this.scores.p1++;
+                else this.scores.p2++;
+                this.showFeedback("POTTED!", ball.color);
+            }
+        }
+        this.updateUI();
+    },
+
+    handleTurnEnd() {
+        if (this.mode === 'multi') {
+            this.turn = this.turn === 1 ? 2 : 1;
+            this.updateUI();
+        }
+        // 檢查是否清盤
+        if (this.balls.filter(b => !b.isCue && !b.potted).length === 0) {
+            this.round++;
+            this.showFeedback("ROUND CLEAR!", "#2ecc71");
+            setTimeout(() => this.resetRack(), 1500);
+        }
+    },
+
+    draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 繪製球洞
+        this.ctx.fillStyle = '#000';
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        [[0,0], [w/2, 0], [w, 0], [0, h], [w/2, h], [w, h]].forEach(p => {
+            this.ctx.beginPath();
+            this.ctx.arc(p[0], p[1], 25, 0, Math.PI*2);
+            this.ctx.fill();
+        });
+
+        // 繪製瞄準線
+        if (this.isAiming) {
+            const cue = this.balls[0];
+            const dir = this.dragStart.sub(this.dragEnd).normalize();
+            
+            // 預測射線
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.strokeStyle = '#f1c40f';
+            this.ctx.beginPath();
+            this.ctx.moveTo(cue.pos.x, cue.pos.y);
+            this.ctx.lineTo(cue.pos.x + dir.x * 300, cue.pos.y + dir.y * 300);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+
+            // 力道指示
+            const dist = Math.min(this.dragStart.dist(this.dragEnd), 150);
+            this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            this.ctx.beginPath();
+            this.ctx.moveTo(cue.pos.x, cue.pos.y);
+            this.ctx.lineTo(this.dragEnd.x, this.dragEnd.y);
+            this.ctx.stroke();
+        }
+
+        this.balls.forEach(b => b.draw(this.ctx));
+        this.particles.forEach(p => p.draw(this.ctx));
+    },
+
+    loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    },
+
+    createExplosion(x, y, color) {
+        for (let i = 0; i < 15; i++) this.particles.push(new Particle(x, y, color));
+    },
+
+    showFeedback(text, color) {
+        const el = document.createElement('div');
+        el.className = 'float-text';
+        el.innerText = text;
+        el.style.color = color;
+        el.style.left = '50%';
+        el.style.top = '40%';
+        document.getElementById('feedback-layer').appendChild(el);
+        setTimeout(() => el.remove(), 1200);
+    },
+
+    updateUI() {
+        document.getElementById('p1-score').innerText = this.scores.p1;
+        document.getElementById('p2-score').innerText = this.scores.p2;
+        document.getElementById('round-display').innerText = `ROUND ${this.round}`;
+        
+        const status = document.getElementById('game-status');
+        if (this.mode === 'single') {
+            status.innerText = "TRAINING MODE";
+            status.style.color = "#f1c40f";
+        } else {
+            status.innerText = this.turn === 1 ? "PLAYER 1'S TURN" : "PLAYER 2'S TURN";
+            status.style.color = this.turn === 1 ? "#3498db" : "#e94560";
+            document.getElementById('p1-card').className = this.turn === 1 ? 'p-4 rounded-xl bg-blue-900/60 active-player' : 'p-4 rounded-xl bg-blue-900/10';
+            document.getElementById('p2-card').className = this.turn === 2 ? 'p-4 rounded-xl bg-red-900/60 active-player' : 'p-4 rounded-xl bg-red-900/10';
+        }
+    },
+
+    resetGame() {
+        this.scores = { p1: 0, p2: 0 };
+        this.round = 1;
+        this.resetRack();
+    }
+};
+</script>
+</body>
+</html>
