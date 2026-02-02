@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台球幾何學：物理與數學的碰撞</title>
+    <!-- MathJax for rendering Mathematical formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Tailwind CSS for layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #076324; /* 撞球檯桌面綠色 */
+            border: 12px solid #5d4037; /* 木質外框 */
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            cursor: crosshair;
+            max-width: 100%;
+            touch-action: none;
+        }
+        .info-panel {
+            background: rgba(45, 45, 45, 0.9);
+            border-radius: 8px;
+        }
+        .instruction-box {
+            border-left: 4px solid #f44336;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- 標題 -->
+        <header class="mb-4 text-center">
+            <h1 class="text-3xl font-bold text-green-400 mb-1">台球幾何學 (Billiards Geometry)</h1>
+            <p class="text-gray-400 text-sm">進階規則：嚴禁透過撞擊敵球來進球！</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 左側：教學與狀態 -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="info-panel p-5 instruction-box">
+                    <h2 class="text-lg font-semibold mb-2 text-red-400">🚨 嚴格擊球規則</h2>
+                    <ul class="text-xs space-y-2 text-gray-300">
+                        <li>1. 最後一顆球進洞時，若<b>白球也進洞</b>，算對方贏。</li>
+                        <li>2. 擊球時必須先觸碰<b>自己的球</b>。若先打到對方的球導致最後一顆球進洞，<b>算對方贏</b>！</li>
+                    </ul>
+                    <div id="math-display" class="bg-black/30 mt-3 p-2 rounded text-[10px] text-blue-300">
+                        等待擊球數據...
+                    </div>
+                </div>
+
+                <!-- 遊戲狀態 -->
+                <div class="info-panel p-5">
+                    <h2 class="text-lg font-semibold mb-2 text-yellow-300">🎮 積分板</h2>
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <span class="text-xs font-bold text-white">玩家 1 (紅)</span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                <span id="p2-name-label" class="text-xs font-bold text-white">玩家 2 (黃)</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-mono text-white" id="score-display">0 : 0</div>
+                        </div>
+                    </div>
+                    <div id="player-label" class="text-center py-1 bg-blue-900/50 rounded text-xs text-blue-200 font-bold mb-2">
+                        請選擇模式開始
+                    </div>
+                    <div id="game-msg" class="text-center text-xs text-gray-300 italic">
+                        注意：擊球第一點必須是自己的顏色！
+                    </div>
+                </div>
+
+                <!-- 模式選擇 -->
+                <div id="setup-panel" class="info-panel p-5 text-center">
+                    <div class="flex flex-col gap-2">
+                        <button onclick="startGame('pve')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 rounded transition">
+                            對戰電腦 (PvE)
+                        </button>
+                        <button onclick="startGame('pvp')" class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 rounded transition">
+                            雙人對戰 (PvP)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：遊戲畫布區 -->
+            <div class="lg:col-span-2 flex flex-col items-center">
+                <div id="canvas-container" class="relative">
+                    <canvas id="poolTable"></canvas>
+                    <div id="overlay-msg" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-500">
+                        <span class="text-4xl font-black text-white italic drop-shadow-lg" id="pop-text">GREAT!</span>
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex gap-4 w-full max-w-2xl">
+                    <div class="flex-1 info-panel p-3 flex items-center justify-center text-xs italic text-gray-400 text-center">
+                        💡 更新：角落球洞縮小（半徑45），挑戰難度提升。
+                    </div>
+                    <button onclick="resetGame()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm text-white transition">
+                        🔄 重開
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 音效控制器 ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+
+        function playTone(freq, type, duration, vol) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const sounds = {
+            hit: (v) => playTone(150 + v * 50, 'sine', 0.1, Math.min(v/10, 0.4)),
+            wall: (v) => playTone(100, 'square', 0.05, Math.min(v/20, 0.2)),
+            goal: () => playTone(659, 'triangle', 0.4, 0.3),
+            foul: () => playTone(110, 'sawtooth', 0.4, 0.2)
+        };
+
+        // --- 常數設定 ---
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 400;
+        const BALL_RADIUS = 15; 
+        const FRICTION = 0.985;
+        const WALL_BOUNCE = 0.75;
+        
+        // --- 球洞設定 ---
+        // 根據要求，將角落球洞從 65 縮小到 45
+        const CORNER_POCKET_RADIUS = 45; 
+        const MID_POCKET_RADIUS = 45;    
+
+        const canvas = document.getElementById('poolTable');
+        const ctx = canvas.getContext('2d');
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        const POCKETS = [
+            {x: 0, y: 0, r: CORNER_POCKET_RADIUS},                
+            {x: CANVAS_WIDTH/2, y: -10, r: MID_POCKET_RADIUS},      
+            {x: CANVAS_WIDTH, y: 0, r: CORNER_POCKET_RADIUS},     
+            {x: 0, y: CANVAS_HEIGHT, r: CORNER_POCKET_RADIUS},    
+            {x: CANVAS_WIDTH/2, y: CANVAS_HEIGHT + 10, r: MID_POCKET_RADIUS}, 
+            {x: CANVAS_WIDTH, y: CANVAS_HEIGHT, r: CORNER_POCKET_RADIUS}  
+        ];
+
+        let balls = [];
+        let particles = [];
+        let gameMode = 'pve'; 
+        let currentPlayer = 1; 
+        let scores = [0, 0];
+        let isMoving = false;
+        let isAiming = false;
+        let isFreeBall = false;
+        let dragStart = { x: 0, y: 0 };
+        let mousePos = { x: 0, y: 0 };
+        let gameActive = false;
+        let aiThinking = false;
+        let scoredThisTurn = false;
+        let whiteFouled = false;
+        let lastBallEntered = false; 
+        let firstBallHit = null; // 紀錄白球在這一桿第一個撞擊到的目標球
+
+        class Ball {
+            constructor(x, y, color, type, isWhite = false) {
+                this.x = x; this.y = y;
+                this.vx = 0; this.vy = 0;
+                this.radius = BALL_RADIUS;
+                this.color = color;
+                this.type = type; 
+                this.isWhite = isWhite;
+                this.inPocket = false;
+            }
+
+            draw() {
+                if (this.inPocket) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                const gradient = ctx.createRadialGradient(this.x-5, this.y-5, 3, this.x, this.y, this.radius);
+                gradient.addColorStop(0, 'white');
+                gradient.addColorStop(0.3, this.color);
+                gradient.addColorStop(1, 'black');
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                ctx.closePath();
+                
+                if (this.isWhite && isFreeBall) {
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius + 12, 0, Math.PI*2); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            update() {
+                if (this.inPocket) return;
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= FRICTION; this.vy *= FRICTION;
+
+                if (Math.abs(this.vx) < 0.12) this.vx = 0;
+                if (Math.abs(this.vy) < 0.12) this.vy = 0;
+
+                if (this.x - this.radius < 0 || this.x + this.radius > CANVAS_WIDTH) {
+                    this.vx = -this.vx * WALL_BOUNCE;
+                    this.x = (this.x - this.radius < 0) ? this.radius : CANVAS_WIDTH - this.radius;
+                }
+                if (this.y - this.radius < 0 || this.y + this.radius > CANVAS_HEIGHT) {
+                    this.vy = -this.vy * WALL_BOUNCE;
+                    this.y = (this.y - this.radius < 0) ? this.radius : CANVAS_HEIGHT - this.radius;
+                }
+                checkPocket(this);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8;
+                this.color = color;
+                this.life = 1.0;
+            }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 4, 4);
+                ctx.globalAlpha = 1.0;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.04; }
+        }
+
+        function initBalls() {
+            balls = [];
+            balls.push(new Ball(200, CANVAS_HEIGHT / 2, 'white', 'white', true));
+            const startX = 550;
+            const startY = CANVAS_HEIGHT / 2;
+            let count = 0;
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col <= row; col++) {
+                    const type = (count % 2 === 0) ? 'red' : 'yellow';
+                    const color = type === 'red' ? '#ef4444' : '#fbbf24';
+                    balls.push(new Ball(startX + row * 28, startY - (row * 16) + (col * 32), color, type, false));
+                    count++;
+                }
+            }
+        }
+
+        function startGame(mode) {
+            initAudio();
+            gameMode = mode;
+            scores = [0, 0];
+            currentPlayer = 1;
+            gameActive = true;
+            isFreeBall = false;
+            initBalls();
+            document.getElementById('setup-panel').classList.add('hidden');
+            document.getElementById('p2-name-label').innerText = mode === 'pve' ? "電腦 (黃)" : "玩家 2 (黃)";
+            updateUI();
+            notify("遊戲開始！紅球先攻");
+        }
+
+        function resetGame() {
+            gameActive = false;
+            document.getElementById('setup-panel').classList.remove('hidden');
+            balls = []; scores = [0, 0];
+            updateUI();
+            notify("請選擇模式開始對戰");
+        }
+
+        function checkPocket(ball) {
+            POCKETS.forEach(p => {
+                const dist = Math.hypot(ball.x - p.x, ball.y - p.y);
+                if (dist < p.r) {
+                    ball.inPocket = true;
+                    ball.vx = 0; ball.vy = 0;
+                    if (ball.isWhite) handleFoul();
+                    else handleGoal(ball);
+                }
+            });
+        }
+
+        function handleGoal(ball) {
+            // 檢查是否先撞到對方的球 (違規擊球)
+            const opponentType = (currentPlayer === 1) ? 'yellow' : 'red';
+            const isIllegalHit = firstBallHit && firstBallHit.type === opponentType;
+
+            if (isIllegalHit) {
+                sounds.foul();
+                popText("非法進球！");
+                notify("先撞到對方的球，進球無效！");
+            } else {
+                sounds.goal();
+                createExplosion(ball.x, ball.y, ball.color);
+                if (ball.type === 'red') {
+                    scores[0]++;
+                    if (currentPlayer === 1) scoredThisTurn = true;
+                    popText("紅球進！");
+                } else {
+                    scores[1]++;
+                    if (currentPlayer === 2) scoredThisTurn = true;
+                    popText("黃球進！");
+                }
+                
+                const remainingOfType = balls.filter(b => b.type === ball.type && !b.inPocket).length;
+                if (remainingOfType === 0) {
+                    lastBallEntered = true;
+                }
+            }
+            updateUI();
+        }
+
+        function handleFoul() {
+            sounds.foul();
+            whiteFouled = true;
+            popText("洗袋犯規！");
+            notify("白球進洞！");
+        }
+
+        function updateUI() {
+            document.getElementById('score-display').innerText = `${scores[0]} : ${scores[1]}`;
+            const label = document.getElementById('player-label');
+            const p2Name = gameMode === 'pve' ? "電腦 AI" : "玩家 2";
+            if (currentPlayer === 1) {
+                label.innerText = "👉 玩家 1 (紅球)";
+                label.className = "text-center py-1 bg-red-900/50 rounded text-xs text-red-200 font-bold mb-2";
+            } else {
+                label.innerText = `👉 ${p2Name} (黃球)`;
+                label.className = "text-center py-1 bg-yellow-900/50 rounded text-xs text-yellow-200 font-bold mb-2";
+            }
+        }
+
+        function notify(msg) { document.getElementById('game-msg').innerText = msg; }
+        function popText(txt) {
+            const el = document.getElementById('overlay-msg');
+            const span = document.getElementById('pop-text');
+            span.innerText = txt;
+            el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 1000);
+        }
+        function createExplosion(x, y, color) {
+            for(let i=0; i<20; i++) particles.push(new Particle(x, y, color));
+        }
+
+        function resolveCollision(b1, b2) {
+            const dx = b2.x - b1.x;
+            const dy = b2.y - b1.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance < b1.radius + b2.radius) {
+                // 紀錄白球的第一個撞擊點
+                if (b1.isWhite && firstBallHit === null) firstBallHit = b2;
+                if (b2.isWhite && firstBallHit === null) firstBallHit = b1;
+
+                const overlap = b1.radius + b2.radius - distance;
+                const nx = dx / distance;
+                const ny = dy / distance;
+                b1.x -= nx * overlap / 2; b1.y -= ny * overlap / 2;
+                b2.x += nx * overlap / 2; b2.y += ny * overlap / 2;
+                const v1n = b1.vx * nx + b1.vy * ny;
+                const v2n = b2.vx * nx + b2.vy * ny;
+                const vDiff = v1n - v2n;
+                b1.vx -= vDiff * nx; b1.vy -= vDiff * ny;
+                b2.vx += vDiff * nx; b2.vy += vDiff * ny;
+                if(Math.abs(vDiff) > 0.5) sounds.hit(Math.abs(vDiff));
+            }
+        }
+
+        canvas.addEventListener('mousedown', e => {
+            if (!gameActive || isMoving || aiThinking) return;
+            if (gameMode === 'pve' && currentPlayer === 2) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+            const my = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
+            const whiteBall = balls.find(b => b.isWhite);
+            if (isFreeBall) {
+                if (Math.hypot(mx - whiteBall.x, my - whiteBall.y) < whiteBall.radius * 4) isAiming = true; 
+            } else {
+                isAiming = true; dragStart = { x: mx, y: my };
+            }
+        });
+
+        window.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mousePos.x = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+            mousePos.y = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
+            if (isAiming && isFreeBall) {
+                const whiteBall = balls.find(b => b.isWhite);
+                whiteBall.x = Math.max(whiteBall.radius, Math.min(CANVAS_WIDTH - whiteBall.radius, mousePos.x));
+                whiteBall.y = Math.max(whiteBall.radius, Math.min(CANVAS_HEIGHT - whiteBall.radius, mousePos.y));
+            }
+        });
+
+        window.addEventListener('mouseup', e => {
+            if (!isAiming) return;
+            isAiming = false;
+            if (isFreeBall) { isFreeBall = false; notify("位置固定，請瞄準擊球！"); return; }
+            const whiteBall = balls.find(b => b.isWhite);
+            const dx = dragStart.x - mousePos.x;
+            const dy = dragStart.y - mousePos.y;
+            const power = Math.min(Math.hypot(dx, dy) / 7, 25);
+            const angle = Math.atan2(dy, dx);
+            if (power > 1.5) executeHit(whiteBall, angle, power);
+        });
+
+        function executeHit(ball, angle, power) {
+            ball.vx = Math.cos(angle) * power;
+            ball.vy = Math.sin(angle) * power;
+            scoredThisTurn = false; whiteFouled = false; lastBallEntered = false; 
+            firstBallHit = null; // 重置撞擊點紀錄
+            isMoving = true;
+            document.getElementById('math-display').innerHTML = `擊球角度: $${(angle * 180 / Math.PI).toFixed(1)}^\\circ$ | 力道: ${power.toFixed(1)}`;
+            MathJax.typeset();
+        }
+
+        function runAI() {
+            if (!gameActive || gameMode !== 'pve' || currentPlayer !== 2 || aiThinking || isMoving) return;
+            aiThinking = true;
+            notify("電腦 AI 思考中...");
+            setTimeout(() => {
+                const whiteBall = balls.find(b => b.isWhite);
+                if (isFreeBall) { whiteBall.x = 250; whiteBall.y = 200; isFreeBall = false; }
+                const targets = balls.filter(b => b.type === 'yellow' && !b.inPocket);
+                if (targets.length === 0) { aiThinking = false; return; }
+                const target = targets[Math.floor(Math.random() * targets.length)];
+                const angle = Math.atan2(target.y - whiteBall.y, target.x - whiteBall.x);
+                executeHit(whiteBall, angle, 12 + Math.random() * 8);
+                aiThinking = false;
+                updateUI();
+            }, 800);
+        }
+
+        function mainLoop() {
+            ctx.fillStyle = '#076324'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            ctx.fillStyle = '#111';
+            POCKETS.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); });
+
+            let movingNow = false;
+            for (let i = 0; i < balls.length; i++) {
+                if (!balls[i].inPocket) {
+                    balls[i].update();
+                    if (Math.abs(balls[i].vx) > 0.1 || Math.abs(balls[i].vy) > 0.1) movingNow = true;
+                    for (let j = i + 1; j < balls.length; j++) {
+                        if (!balls[j].inPocket) resolveCollision(balls[i], balls[j]);
+                    }
+                }
+            }
+
+            if (isAiming && !isFreeBall && !isMoving) {
+                const whiteBall = balls.find(b => b.isWhite);
+                const dx = dragStart.x - mousePos.x;
+                const dy = dragStart.y - mousePos.y;
+                const angle = Math.atan2(dy, dx);
+                ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.beginPath(); ctx.moveTo(whiteBall.x, whiteBall.y);
+                ctx.lineTo(whiteBall.x + Math.cos(angle) * 120, whiteBall.y + Math.sin(angle) * 120); ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            balls.forEach(b => b.draw());
+            particles.forEach((p, idx) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(idx, 1); });
+
+            if (isMoving && !movingNow) { isMoving = false; setTimeout(onStopMoving, 200); }
+            requestAnimationFrame(mainLoop);
+        }
+
+        function onStopMoving() {
+            if (!gameActive) return;
+            const whiteBall = balls.find(b => b.isWhite);
+            const opponentType = (currentPlayer === 1) ? 'yellow' : 'red';
+            const winnerIfOpponentLoss = (currentPlayer === 1) ? (gameMode === 'pve' ? "電腦 AI" : "玩家 2") : "玩家 1";
+
+            const illegalHit = firstBallHit && firstBallHit.type === opponentType;
+
+            if (lastBallEntered && whiteFouled) {
+                gameActive = false;
+                popText("白球洗袋！輸了");
+                notify(`最後一球時白球落袋！由 ${winnerIfOpponentLoss} 獲勝！`);
+                return;
+            }
+
+            if (lastBallEntered && illegalHit) {
+                gameActive = false;
+                popText("打錯球！輸了");
+                notify(`最後一球先撞到對方的球！由 ${winnerIfOpponentLoss} 獲勝！`);
+                return;
+            }
+
+            if (whiteFouled) {
+                whiteBall.inPocket = false; whiteBall.x = 400; whiteBall.y = 200;
+                whiteBall.vx = 0; whiteBall.vy = 0; isFreeBall = true;
+                switchTurn();
+            } else if (!scoredThisTurn) {
+                switchTurn();
+            } else {
+                notify("好球！獲得額外擊球權");
+                checkWin();
+                if (gameActive && gameMode === 'pve' && currentPlayer === 2) runAI(); 
+            }
+        }
+
+        function switchTurn() {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updateUI();
+            if (gameActive && gameMode === 'pve' && currentPlayer === 2) setTimeout(runAI, 500);
+        }
+
+        function checkWin() {
+            const reds = balls.filter(b => b.type === 'red' && !b.inPocket).length;
+            const yellows = balls.filter(b => b.type === 'yellow' && !b.inPocket).length;
+            if (reds === 0 || yellows === 0) {
+                gameActive = false;
+                popText("比賽結束！");
+                notify(reds === 0 ? "玩家 1 獲勝！" : (gameMode === 'pve' ? "電腦 AI 獲勝！" : "玩家 2 獲勝！"));
+            }
+        }
+
+        requestAnimationFrame(mainLoop);
+    </script>
+</body>
+</html>
